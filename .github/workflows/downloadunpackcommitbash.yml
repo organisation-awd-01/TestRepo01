@@ -1,0 +1,97 @@
+name: DownloadUnpackCommitBash
+run-name: VersionControlIntegration-Bash
+on:
+workflow_dispatch:
+  inputs:
+    artifact_url:
+      description: "The URL of the Dataverse record ID for the artifact created by the pipelines."
+      required: true
+    solution_name:
+      description: "Name of the solution in Dataverse"
+      required: true
+    user_name:
+      description: "User name for the commit"
+      required: true
+    user_email:
+      description: "User name email address"
+      required: true
+    source_branch:
+      description: "Branch for the solution commit"
+      default: "main"
+      required: true
+    target_branch:
+      description: "Branch to create for the solution"
+      required: false
+    commit_message:
+      description: "Message to provide for the commit"
+      default: "test without Dataverse trigger"
+      required: true
+
+permissions:
+  contents: write
+jobs:
+  export-unpack-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+            ref: ${{ github.event.inputs.source_branch }}
+
+      # Commit changes to the existing or new branch
+      - name: create new branch if specified
+        shell: bash
+        run: |
+         if [ -n "${{ github.event.inputs.target_branch }}" ]; then
+               git checkout -b ${{ github.event.inputs.target_branch }} ${{ github.event.inputs.source_branch }}
+         fi
+
+      # Export the solution from the artifact created by pipelines
+      - name: download solution from artifact
+        env:
+            CLIENT_ID: ${{secrets.CLIENT_ID}}
+            TENANT_ID: ${{secrets.TENANT_ID}}
+            CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+            shell: bash
+            run: |
+              aadHost="login.microsoftonline.com"
+              url="${{ github.event.inputs.artifact_url }}/\$value"
+              dataverseHost=$(echo $url | cut -d'/' -f3)
+              body="client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}&grant_type=client_credentials&scope=https://$dataverseHost/.default"
+              OAuthReq=$(curl -s -X POST "https://$aadHost/${TENANT_ID}/oauth2/v2.0/token" -d $body)
+              spnToken=$(echo $OAuthReq | jq -r .access_token)
+              response=$(curl -H "Authorization: Bearer $spnToken" \
+                -X GET $url \
+                -o "${{ github.event.inputs.solution_name }}_managed.zip")
+              unmanaged_artifact_url=$(echo "$url" | sed 's/artifactfile/artifactfileunmanaged/g')
+              response=$(curl -H "Authorization: Bearer $spnToken" \
+                -X GET $unmanaged_artifact_url \
+                -o "${{ github.event.inputs.solution_name }}.zip")
+                # Unpack the solution to a folder named as the solution
+      - name: unpack solution
+        uses: microsoft/powerplatform-actions/unpack-solution@v0
+        with:
+          solution-file: "${{ github.event.inputs.solution_name }}.zip"
+          solution-folder: "${{ github.event.inputs.solution_name }}"
+          solution-type: 'Both'
+          process-canvas-apps: false
+          overwrite-files: true
+          # Commit changes to the existing or new branch
+      - name: commit changes
+        shell: bash
+        run: |
+          rm -rf ${{ github.event.inputs.solution_name }}.zip
+          rm -rf ${{ github.event.inputs.solution_name }}_managed.zip
+          git config user.name ${{ github.event.inputs.user_name }}
+          git config user.email ${{ github.event.inputs.user_email }}
+          git pull
+          git add --all
+          git commit -am "${{ github.event.inputs.commit_message }}" --allow-empty
+          # Push the committed changes to the source branch
+      - name: push to branch
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.target_branch }}" ]; then
+            git push origin "${{ github.event.inputs.target_branch }}"
+          else
+            git push origin "${{ github.event.inputs.source_branch }}"
+          fi
