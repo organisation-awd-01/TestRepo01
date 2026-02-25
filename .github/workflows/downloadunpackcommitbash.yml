@@ -5,7 +5,7 @@ on:
     inputs:
       artifact_url:
         description: "The url of the Dataverse record ID for the artifact created by the pipelines (Example: https://orge9730730.api.crm.dynamics.com/api/data/v9.0/deploymentartifacts([your-artifact-id])/artifactfile)."
-        default: "https://orge9730730.api.crm.dynamics.com/api/data/v9.0/deploymentartifacts(13b507dd-a611-f111-8406-000d3ab26915)/artifactfile"
+        default: "https://orge9730730.crm.dynamics.com/api/data/v9.0/deploymentartifacts(13b507dd-a611-f111-8406-000d3ab26915)/artifactfile"
         required: true
       solution_name:
         description: "Name of the Solution in Dataverse environment"
