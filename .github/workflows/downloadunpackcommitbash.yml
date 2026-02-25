@@ -12,8 +12,8 @@ on:
         default: "mpa_ITBase"
         required: true
       user_name: 
-        description: "deploy@godevsuite580.onmicrosoft.com"
-        default: "username"
+        description: "User name for the commit"
+        default: "deploy@godevsuite580.onmicrosoft.com"
         required: true
       user_email:
         description: "User name email address"
